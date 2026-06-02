@@ -18,8 +18,8 @@ def formatlash(summa):
 
 def api(method, data):
     url = "https://api.telegram.org/bot{}/{}".format(TOKEN, method)
-    body = json.dumps(data).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json; charset=utf-8"})
     try:
         urllib.request.urlopen(req)
     except Exception as e:
@@ -33,8 +33,8 @@ def yuborish(chat_id, matn, keyboard=None):
 
 def asosiy_menu(chat_id):
     yuborish(chat_id, "Nima qilmoqchisiz?", [
-        ["Kirim", "Chiqim"],
-        ["Oldingi qoldiq", "Xisobot korish"]
+        ["\U0001f4b0 Kirim", "\U0001f4b8 Chiqim"],
+        ["\U0001f4bc Oldingi qoldiq", "\U0001f4ca Xisobot korish"]
     ])
 
 def xisobot_matni():
@@ -45,7 +45,7 @@ def xisobot_matni():
     qoldi = balans - jami_chiqim
     kirim_text = "\n".join("+{} {}".format(formatlash(s), i) for s, i in kunlik["kirimlar"])
     chiqim_text = "\n".join("{} {}".format(formatlash(s), i) for s, i in kunlik["chiqimlar"])
-    x = "Kunlik xisobot: {}\n".format(bugun)
+    x = "\U0001f4c5 {}\n".format(bugun)
     if kirim_text:
         x += "\n{}\n".format(kirim_text)
     if chiqim_text:
@@ -62,58 +62,64 @@ def xabar_qayta_ishlash(chat_id, matn):
 
     h = holat.get(chat_id, "")
 
-    if matn == "Kirim":
+    kirim = "\U0001f4b0 Kirim"
+    chiqim = "\U0001f4b8 Chiqim"
+    qoldiq = "\U0001f4bc Oldingi qoldiq"
+    xisobot = "\U0001f4ca Xisobot korish"
+    rahbardan = "\U0001f3e6 Rahbardan"
+    zakladdan = "\U0001f4e6 Zakladdan"
+    orqaga = "\U0001f519 Orqaga"
+
+    if matn == kirim:
         holat[chat_id] = "kirim_tur"
         yuborish(chat_id, "Kirim turi?", [
-            ["Rahbardan", "Zakladdan"],
-            ["Orqaga"]
+            [rahbardan, zakladdan],
+            [orqaga]
         ])
-    elif matn == "Chiqim":
+    elif matn == chiqim:
         holat[chat_id] = "chiqim_summa"
         yuborish(chat_id, "Chiqim summasini kiriting:")
-    elif matn == "Oldingi qoldiq":
+    elif matn == qoldiq:
         holat[chat_id] = "qoldiq_summa"
         yuborish(chat_id, "Oldingi qoldiq summasini kiriting:")
-    elif matn == "Xisobot korish":
+    elif matn == xisobot:
         x, _ = xisobot_matni()
         yuborish(chat_id, x)
         asosiy_menu(chat_id)
-    elif matn == "Orqaga":
+    elif matn == orqaga:
         holat[chat_id] = ""
         asosiy_menu(chat_id)
     elif h == "kirim_tur":
-        if matn == "Rahbardan":
-            kunlik["kirimlar"].append((0, "Rahbardan olingan"))
+        if matn == rahbardan:
             holat[chat_id] = "rahbar_summa"
             yuborish(chat_id, "Rahbardan olingan summani kiriting:")
-        elif matn == "Zakladdan":
+        elif matn == zakladdan:
             holat[chat_id] = "zaklad_summa"
             yuborish(chat_id, "Zakladdan olingan summani kiriting:")
-        elif matn == "Orqaga":
+        elif matn == orqaga:
             holat[chat_id] = ""
             asosiy_menu(chat_id)
     elif h == "rahbar_summa":
         try:
             summa = int(matn.replace(" ", "").replace(",", ""))
-            if kunlik["kirimlar"] and kunlik["kirimlar"][-1][1] == "Rahbardan olingan":
-                kunlik["kirimlar"][-1] = (summa, "Rahbardan olingan")
+            kunlik["kirimlar"].append((summa, "Rahbardan olingan"))
             holat[chat_id] = ""
-            yuborish(chat_id, "Qoshildi: +{} Rahbardan olingan".format(formatlash(summa)))
+            yuborish(chat_id, "\u2705 +{} Rahbardan olingan".format(formatlash(summa)))
             asosiy_menu(chat_id)
         except:
-            yuborish(chat_id, "Faqat raqam kiriting!")
+            yuborish(chat_id, "\u26a0\ufe0f Faqat raqam kiriting!")
     elif h == "zaklad_summa":
         try:
             holat[chat_id + "_summa"] = int(matn.replace(" ", "").replace(",", ""))
             holat[chat_id] = "zaklad_izoh"
             yuborish(chat_id, "Zaklad izohini kiriting:")
         except:
-            yuborish(chat_id, "Faqat raqam kiriting!")
+            yuborish(chat_id, "\u26a0\ufe0f Faqat raqam kiriting!")
     elif h == "zaklad_izoh":
         summa = holat.get(chat_id + "_summa", 0)
         kunlik["kirimlar"].append((summa, matn))
         holat[chat_id] = ""
-        yuborish(chat_id, "Qoshildi: +{} {}".format(formatlash(summa), matn))
+        yuborish(chat_id, "\u2705 +{} {}".format(formatlash(summa), matn))
         asosiy_menu(chat_id)
     elif h == "chiqim_summa":
         try:
@@ -121,21 +127,21 @@ def xabar_qayta_ishlash(chat_id, matn):
             holat[chat_id] = "chiqim_izoh"
             yuborish(chat_id, "Izohini kiriting:")
         except:
-            yuborish(chat_id, "Faqat raqam kiriting!")
+            yuborish(chat_id, "\u26a0\ufe0f Faqat raqam kiriting!")
     elif h == "chiqim_izoh":
         summa = holat.get(chat_id + "_summa", 0)
         kunlik["chiqimlar"].append((summa, matn))
         holat[chat_id] = ""
-        yuborish(chat_id, "Qoshildi: {} {}".format(formatlash(summa), matn))
+        yuborish(chat_id, "\u2705 {} {}".format(formatlash(summa), matn))
         asosiy_menu(chat_id)
     elif h == "qoldiq_summa":
         try:
             kunlik["oldingi_qoldiq"] = int(matn.replace(" ", "").replace(",", ""))
             holat[chat_id] = ""
-            yuborish(chat_id, "Oldingi qoldiq saqlandi!")
+            yuborish(chat_id, "\u2705 Oldingi qoldiq saqlandi!")
             asosiy_menu(chat_id)
         except:
-            yuborish(chat_id, "Faqat raqam kiriting!")
+            yuborish(chat_id, "\u26a0\ufe0f Faqat raqam kiriting!")
     else:
         asosiy_menu(chat_id)
 
