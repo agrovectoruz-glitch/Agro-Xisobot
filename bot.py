@@ -1,101 +1,42 @@
-import logging
 import os
+import json
 import asyncio
-from datetime import datetime, time
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
-
-logging.basicConfig(level=logging.INFO)
+import urllib.request
+import urllib.parse
+from datetime import datetime, time as dtime
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 
 TOKEN = os.environ.get("TOKEN")
 GURUH_ID = os.environ.get("GURUH_ID")
 YUBORISH_SOAT = int(os.environ.get("YUBORISH_SOAT", "21"))
+BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 
-TUR, SUMMA, IZOH, ZAKLAD_IZOH = range(4)
 kunlik = {"kirimlar": [], "chiqimlar": [], "oldingi_qoldiq": 0}
+holat = {}
 
 def formatlash(summa):
     return "{:,}".format(int(summa)).replace(",", " ")
 
-async def start(update, context):
-    keyboard = [[KeyboardButton("💰 Kirim"), KeyboardButton("💸 Chiqim")], [KeyboardButton("💼 Oldingi qoldiq"), KeyboardButton("📊 Xisobot ko'rish")]]
-    await update.message.reply_text("Nima qilmoqchisiz?", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+def api(method, data):
+    url = f"{BASE_URL}/{method}"
+    body = json.dumps(data).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    urllib.request.urlopen(req)
 
-async def xabar(update, context):
-    matn = update.message.text
-    if matn == "💰 Kirim":
-        keyboard = [[KeyboardButton("🏦 Rahbardan"), KeyboardButton("📦 Zakladdan")], [KeyboardButton("🔙 Orqaga")]]
-        await update.message.reply_text("Kirim turi?", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
-        return TUR
-    elif matn == "💸 Chiqim":
-        context.user_data["tur"] = "chiqim"
-        await update.message.reply_text("Chiqim summasini kiriting:")
-        return SUMMA
-    elif matn == "💼 Oldingi qoldiq":
-        context.user_data["tur"] = "qoldiq"
-        await update.message.reply_text("Oldingi qoldiq summasini kiriting:")
-        return SUMMA
-    elif matn == "📊 Xisobot ko'rish":
-        await xisobot_yuborish(update, context, faqat_korish=True)
-    return ConversationHandler.END
+def yuborish(chat_id, matn, keyboard=None):
+    data = {"chat_id": chat_id, "text": matn}
+    if keyboard:
+        data["reply_markup"] = {"keyboard": keyboard, "resize_keyboard": True}
+    api("sendMessage", data)
 
-async def tur_tanlash(update, context):
-    matn = update.message.text
-    if matn == "🏦 Rahbardan":
-        context.user_data["tur"] = "rahbar"
-        await update.message.reply_text("Summani kiriting:")
-        return SUMMA
-    elif matn == "📦 Zakladdan":
-        context.user_data["tur"] = "zaklad"
-        await update.message.reply_text("Summani kiriting:")
-        return SUMMA
-    elif matn == "🔙 Orqaga":
-        await start(update, context)
-        return ConversationHandler.END
-    return TUR
+def asosiy_menu(chat_id):
+    yuborish(chat_id, "Nima qilmoqchisiz?", [
+        ["💰 Kirim", "💸 Chiqim"],
+        ["💼 Oldingi qoldiq", "📊 Xisobot ko'rish"]
+    ])
 
-async def summa_qabul(update, context):
-    try:
-        summa = int(update.message.text.replace(" ", "").replace(",", ""))
-        context.user_data["summa"] = summa
-        tur = context.user_data.get("tur")
-        if tur == "qoldiq":
-            kunlik["oldingi_qoldiq"] = summa
-            await update.message.reply_text(f"✅ Oldingi qoldiq: {formatlash(summa)} so'm saqlandi!")
-            await start(update, context)
-            return ConversationHandler.END
-        elif tur == "rahbar":
-            kunlik["kirimlar"].append((summa, "Rahbardan olingan"))
-            await update.message.reply_text(f"✅ +{formatlash(summa)} Rahbardan olingan")
-            await start(update, context)
-            return ConversationHandler.END
-        elif tur == "zaklad":
-            await update.message.reply_text("Zaklad izohini kiriting:")
-            return ZAKLAD_IZOH
-        elif tur == "chiqim":
-            await update.message.reply_text("Izohini kiriting:")
-            return IZOH
-    except ValueError:
-        await update.message.reply_text("⚠️ Faqat raqam kiriting!")
-        return SUMMA
-
-async def izoh_qabul(update, context):
-    izoh = update.message.text
-    summa = context.user_data.get("summa")
-    kunlik["chiqimlar"].append((summa, izoh))
-    await update.message.reply_text(f"✅ {formatlash(summa)} {izoh}")
-    await start(update, context)
-    return ConversationHandler.END
-
-async def zaklad_izoh_qabul(update, context):
-    izoh = update.message.text
-    summa = context.user_data.get("summa")
-    kunlik["kirimlar"].append((summa, izoh))
-    await update.message.reply_text(f"✅ +{formatlash(summa)} {izoh}")
-    await start(update, context)
-    return ConversationHandler.END
-
-async def xisobot_yuborish(update=None, context=None, faqat_korish=False):
+def xisobot_matni():
     bugun = datetime.now().strftime("%d.%m.%Y")
     jami_kirim = sum(s for s, _ in kunlik["kirimlar"])
     jami_chiqim = sum(s for s, _ in kunlik["chiqimlar"])
@@ -103,41 +44,127 @@ async def xisobot_yuborish(update=None, context=None, faqat_korish=False):
     qoldi = balans - jami_chiqim
     kirim_text = "\n".join(f"+{formatlash(s)} {i}" for s, i in kunlik["kirimlar"])
     chiqim_text = "\n".join(f"{formatlash(s)} {i}" for s, i in kunlik["chiqimlar"])
-    xisobot = f"📅 {bugun}\n"
+    x = f"📅 {bugun}\n"
     if kirim_text:
-        xisobot += f"\n{kirim_text}\n"
+        x += f"\n{kirim_text}\n"
     if chiqim_text:
-        xisobot += f"\n{chiqim_text}\n"
-    xisobot += f"\nJami: {formatlash(jami_chiqim)}\nBalans: {formatlash(balans)}\nQoldi: {formatlash(qoldi)}"
-    if faqat_korish and update:
-        await update.message.reply_text(xisobot)
-    elif not faqat_korish and context:
-        await context.bot.send_message(chat_id=GURUH_ID, text=xisobot)
-        kunlik["oldingi_qoldiq"] = qoldi
-        kunlik["kirimlar"] = []
-        kunlik["chiqimlar"] = []
+        x += f"\n{chiqim_text}\n"
+    x += f"\nJami: {formatlash(jami_chiqim)}\nBalans: {formatlash(balans)}\nQoldi: {formatlash(qoldi)}"
+    return x, qoldi
 
-async def kunlik_yuborish(context):
-    await xisobot_yuborish(context=context, faqat_korish=False)
+def xabar_qayta_ishlash(chat_id, matn):
+    h = holat.get(chat_id, "")
+    
+    if matn == "💰 Kirim":
+        holat[chat_id] = "kirim_tur"
+        yuborish(chat_id, "Kirim turi?", [["🏦 Rahbardan", "📦 Zakladdan"], ["🔙 Orqaga"]])
+    elif matn == "💸 Chiqim":
+        holat[chat_id] = "chiqim_summa"
+        yuborish(chat_id, "Chiqim summasini kiriting:")
+    elif matn == "💼 Oldingi qoldiq":
+        holat[chat_id] = "qoldiq_summa"
+        yuborish(chat_id, "Oldingi qoldiq summasini kiriting:")
+    elif matn == "📊 Xisobot ko'rish":
+        x, _ = xisobot_matni()
+        yuborish(chat_id, x)
+        asosiy_menu(chat_id)
+    elif matn == "🔙 Orqaga":
+        holat[chat_id] = ""
+        asosiy_menu(chat_id)
+    elif h == "kirim_tur":
+        if matn == "🏦 Rahbardan":
+            holat[chat_id] = "rahbar_summa"
+            yuborish(chat_id, "Summani kiriting:")
+        elif matn == "📦 Zakladdan":
+            holat[chat_id] = "zaklad_summa"
+            yuborish(chat_id, "Summani kiriting:")
+    elif h == "rahbar_summa":
+        try:
+            summa = int(matn.replace(" ", ""))
+            kunlik["kirimlar"].append((summa, "Rahbardan olingan"))
+            holat[chat_id] = ""
+            yuborish(chat_id, f"✅ +{formatlash(summa)} Rahbardan olingan")
+            asosiy_menu(chat_id)
+        except:
+            yuborish(chat_id, "⚠️ Faqat raqam kiriting!")
+    elif h == "zaklad_summa":
+        try:
+            holat[chat_id + "_summa"] = int(matn.replace(" ", ""))
+            holat[chat_id] = "zaklad_izoh"
+            yuborish(chat_id, "Zaklad izohini kiriting:")
+        except:
+            yuborish(chat_id, "⚠️ Faqat raqam kiriting!")
+    elif h == "zaklad_izoh":
+        summa = holat.get(chat_id + "_summa", 0)
+        kunlik["kirimlar"].append((summa, matn))
+        holat[chat_id] = ""
+        yuborish(chat_id, f"✅ +{formatlash(summa)} {matn}")
+        asosiy_menu(chat_id)
+    elif h == "chiqim_summa":
+        try:
+            holat[chat_id + "_summa"] = int(matn.replace(" ", ""))
+            holat[chat_id] = "chiqim_izoh"
+            yuborish(chat_id, "Izohini kiriting:")
+        except:
+            yuborish(chat_id, "⚠️ Faqat raqam kiriting!")
+    elif h == "chiqim_izoh":
+        summa = holat.get(chat_id + "_summa", 0)
+        kunlik["chiqimlar"].append((summa, matn))
+        holat[chat_id] = ""
+        yuborish(chat_id, f"✅ {formatlash(summa)} {matn}")
+        asosiy_menu(chat_id)
+    elif h == "qoldiq_summa":
+        try:
+            kunlik["oldingi_qoldiq"] = int(matn.replace(" ", ""))
+            holat[chat_id] = ""
+            yuborish(chat_id, f"✅ Oldingi qoldiq saqlandi!")
+            asosiy_menu(chat_id)
+        except:
+            yuborish(chat_id, "⚠️ Faqat raqam kiriting!")
+    else:
+        asosiy_menu(chat_id)
 
-async def main():
-    app = Application.builder().token(TOKEN).build()
-    conv = ConversationHandler(
-        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, xabar)],
-        states={
-            TUR: [MessageHandler(filters.TEXT & ~filters.COMMAND, tur_tanlash)],
-            SUMMA: [MessageHandler(filters.TEXT & ~filters.COMMAND, summa_qabul)],
-            IZOH: [MessageHandler(filters.TEXT & ~filters.COMMAND, izoh_qabul)],
-            ZAKLAD_IZOH: [MessageHandler(filters.TEXT & ~filters.COMMAND, zaklad_izoh_qabul)],
-        },
-        fallbacks=[CommandHandler("start", start)]
-    )
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(conv)
-    app.job_queue.run_daily(kunlik_yuborish, time=time(hour=YUBORISH_SOAT, minute=0))
-    await app.run_polling(allowed_updates=Update.ALL_TYPES)
+def polling():
+    offset = 0
+    while True:
+        try:
+            url = f"{BASE_URL}/getUpdates?offset={offset}&timeout=30"
+            with urllib.request.urlopen(url, timeout=35) as r:
+                updates = json.loads(r.read())
+            for u in updates.get("result", []):
+                offset = u["update_id"] + 1
+                msg = u.get("message", {})
+                chat_id = str(msg.get("chat", {}).get("id", ""))
+                matn = msg.get("text", "")
+                if chat_id and matn:
+                    xabar_qayta_ishlash(chat_id, matn)
+        except Exception as e:
+            print(f"Xato: {e}")
+
+def kunlik_yuborish():
+    while True:
+        now = datetime.now()
+        if now.hour == YUBORISH_SOAT and now.minute == 0:
+            try:
+                x, qoldi = xisobot_matni()
+                yuborish(GURUH_ID, x)
+                kunlik["oldingi_qoldiq"] = qoldi
+                kunlik["kirimlar"] = []
+                kunlik["chiqimlar"] = []
+            except Exception as e:
+                print(f"Yuborish xatosi: {e}")
+        import time
+        time.sleep(60)
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot ishlayapti!")
+    def log_message(self, *args):
+        pass
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(main())
+    threading.Thread(target=kunlik_yuborish, daemon=True).start()
+    threading.Thread(target=polling, daemon=True).start()
+    HTTPServer(("0.0.0.0", int(os.environ.get("PORT", 10000))), Handler).serve_forever()
