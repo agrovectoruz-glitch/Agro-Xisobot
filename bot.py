@@ -12,20 +12,16 @@ GURUH_ID = os.environ.get("GURUH_ID")
 YUBORISH_SOAT = int(os.environ.get("YUBORISH_SOAT", "21"))
 
 TUR, SUMMA, IZOH, ZAKLAD_IZOH = range(4)
-
 kunlik = {"kirimlar": [], "chiqimlar": [], "oldingi_qoldiq": 0}
 
 def formatlash(summa):
     return "{:,}".format(int(summa)).replace(",", " ")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [KeyboardButton("💰 Kirim"), KeyboardButton("💸 Chiqim")],
-        [KeyboardButton("💼 Oldingi qoldiq"), KeyboardButton("📊 Xisobot ko'rish")]
-    ]
+async def start(update, context):
+    keyboard = [[KeyboardButton("💰 Kirim"), KeyboardButton("💸 Chiqim")], [KeyboardButton("💼 Oldingi qoldiq"), KeyboardButton("📊 Xisobot ko'rish")]]
     await update.message.reply_text("Nima qilmoqchisiz?", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-async def xabar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def xabar(update, context):
     matn = update.message.text
     if matn == "💰 Kirim":
         keyboard = [[KeyboardButton("🏦 Rahbardan"), KeyboardButton("📦 Zakladdan")], [KeyboardButton("🔙 Orqaga")]]
@@ -43,7 +39,7 @@ async def xabar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await xisobot_yuborish(update, context, faqat_korish=True)
     return ConversationHandler.END
 
-async def tur_tanlash(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def tur_tanlash(update, context):
     matn = update.message.text
     if matn == "🏦 Rahbardan":
         context.user_data["tur"] = "rahbar"
@@ -58,7 +54,7 @@ async def tur_tanlash(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     return TUR
 
-async def summa_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def summa_qabul(update, context):
     try:
         summa = int(update.message.text.replace(" ", "").replace(",", ""))
         context.user_data["summa"] = summa
@@ -83,7 +79,7 @@ async def summa_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Faqat raqam kiriting!")
         return SUMMA
 
-async def izoh_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def izoh_qabul(update, context):
     izoh = update.message.text
     summa = context.user_data.get("summa")
     kunlik["chiqimlar"].append((summa, izoh))
@@ -91,7 +87,7 @@ async def izoh_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start(update, context)
     return ConversationHandler.END
 
-async def zaklad_izoh_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def zaklad_izoh_qabul(update, context):
     izoh = update.message.text
     summa = context.user_data.get("summa")
     kunlik["kirimlar"].append((summa, izoh))
@@ -101,15 +97,12 @@ async def zaklad_izoh_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def xisobot_yuborish(update=None, context=None, faqat_korish=False):
     bugun = datetime.now().strftime("%d.%m.%Y")
-    kirimlar = kunlik["kirimlar"]
-    chiqimlar = kunlik["chiqimlar"]
-    oldingi_qoldiq = kunlik["oldingi_qoldiq"]
-    jami_kirim = sum(s for s, _ in kirimlar)
-    jami_chiqim = sum(s for s, _ in chiqimlar)
-    balans = oldingi_qoldiq + jami_kirim
+    jami_kirim = sum(s for s, _ in kunlik["kirimlar"])
+    jami_chiqim = sum(s for s, _ in kunlik["chiqimlar"])
+    balans = kunlik["oldingi_qoldiq"] + jami_kirim
     qoldi = balans - jami_chiqim
-    kirim_text = "\n".join(f"+{formatlash(s)} {i}" for s, i in kirimlar)
-    chiqim_text = "\n".join(f"{formatlash(s)} {i}" for s, i in chiqimlar)
+    kirim_text = "\n".join(f"+{formatlash(s)} {i}" for s, i in kunlik["kirimlar"])
+    chiqim_text = "\n".join(f"{formatlash(s)} {i}" for s, i in kunlik["chiqimlar"])
     xisobot = f"📅 {bugun}\n"
     if kirim_text:
         xisobot += f"\n{kirim_text}\n"
@@ -124,7 +117,7 @@ async def xisobot_yuborish(update=None, context=None, faqat_korish=False):
         kunlik["kirimlar"] = []
         kunlik["chiqimlar"] = []
 
-async def kunlik_yuborish(context: ContextTypes.DEFAULT_TYPE):
+async def kunlik_yuborish(context):
     await xisobot_yuborish(context=context, faqat_korish=False)
 
 async def main():
@@ -133,4 +126,16 @@ async def main():
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, xabar)],
         states={
             TUR: [MessageHandler(filters.TEXT & ~filters.COMMAND, tur_tanlash)],
-            SUMMA: [MessageHandler(filters.TEXT & ~filters.COMMAND, s
+            SUMMA: [MessageHandler(filters.TEXT & ~filters.COMMAND, summa_qabul)],
+            IZOH: [MessageHandler(filters.TEXT & ~filters.COMMAND, izoh_qabul)],
+            ZAKLAD_IZOH: [MessageHandler(filters.TEXT & ~filters.COMMAND, zaklad_izoh_qabul)],
+        },
+        fallbacks=[CommandHandler("start", start)]
+    )
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(conv)
+    app.job_queue.run_daily(kunlik_yuborish, time=time(hour=YUBORISH_SOAT, minute=0))
+    await app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+if __name__ == "__main__":
+    asyncio.run(main())
