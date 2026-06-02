@@ -7,7 +7,7 @@ from datetime import datetime, time as dtime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
-TOKEN = os.environ.get("TOKEN")
+TOKEN = os.environ.get("8671805651:AAFf0Fc_2IKrmtPww4UesiHIIAgRlB77Ryc")
 GURUH_ID = os.environ.get("GURUH_ID")
 YUBORISH_SOAT = int(os.environ.get("YUBORISH_SOAT", "21"))
 BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
