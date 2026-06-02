@@ -5,6 +5,7 @@ from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import time
+import calendar
 
 TOKEN = os.environ.get("8808944343:AAFNa_P6pnIKejQBal9MPavryAe8qoPrRmw")
 GURUH_ID = os.environ.get("-1003966538627")
@@ -71,10 +72,12 @@ def oylik_xisobot_matni():
         x += f"\n💸 Xarajatlar:\n{xarajat_text}\n"
     x += f"\nJami daromad: {formatlash(jami_daromad)}\nJami xarajat: {formatlash(jami_xarajat)}\nQoldi: {formatlash(qoldi)}"
     return x
-if matn == "/start":
-    asosiy_menu(chat_id)
-    return
+
 def xabar_qayta_ishlash(chat_id, matn):
+    if matn == "/start":
+        asosiy_menu(chat_id)
+        return
+
     h = holat.get(chat_id, "")
 
     if matn == "💰 Daromad":
@@ -166,8 +169,6 @@ def kunlik_yuborish():
                 ma_lumot["oldingi_qoldiq"] = qoldi
                 ma_lumot["daromadlar"] = []
                 ma_lumot["xarajatlar"] = []
-                # Oyning oxirgi kuni oylik xisobot yuborish
-                import calendar
                 oxirgi_kun = calendar.monthrange(now.year, now.month)[1]
                 if now.day == oxirgi_kun:
                     oy_x = oylik_xisobot_matni()
