@@ -1,16 +1,14 @@
 import os
 import json
-import asyncio
 import urllib.request
-import urllib.parse
-from datetime import datetime, time as dtime
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+import time
 
-TOKEN = os.environ.get("8671805651:AAFf0Fc_2IKrmtPww4UesiHIIAgRlB77Ryc")
-GURUH_ID = os.environ.get("GURUH_ID")
-YUBORISH_SOAT = int(os.environ.get("YUBORISH_SOAT", "21"))
-BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
+TOKEN = os.environ.get("TOKEN")
+GURUH_ID = os.environ.get("-4911960051")
+YUBORISH_SOAT = int(os.environ.get("YUBORISH_SOAT", "15"))
 
 kunlik = {"kirimlar": [], "chiqimlar": [], "oldingi_qoldiq": 0}
 holat = {}
@@ -19,10 +17,13 @@ def formatlash(summa):
     return "{:,}".format(int(summa)).replace(",", " ")
 
 def api(method, data):
-    url = f"{BASE_URL}/{method}"
+    url = "https://api.telegram.org/bot{}/{}".format(TOKEN, method)
     body = json.dumps(data).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-    urllib.request.urlopen(req)
+    try:
+        urllib.request.urlopen(req)
+    except Exception as e:
+        print("API xato: {}".format(e))
 
 def yuborish(chat_id, matn, keyboard=None):
     data = {"chat_id": chat_id, "text": matn}
@@ -32,8 +33,8 @@ def yuborish(chat_id, matn, keyboard=None):
 
 def asosiy_menu(chat_id):
     yuborish(chat_id, "Nima qilmoqchisiz?", [
-        ["💰 Kirim", "💸 Chiqim"],
-        ["💼 Oldingi qoldiq", "📊 Xisobot ko'rish"]
+        ["Kirim", "Chiqim"],
+        ["Oldingi qoldiq", "Xisobot korish"]
     ])
 
 def xisobot_matni():
@@ -42,85 +43,99 @@ def xisobot_matni():
     jami_chiqim = sum(s for s, _ in kunlik["chiqimlar"])
     balans = kunlik["oldingi_qoldiq"] + jami_kirim
     qoldi = balans - jami_chiqim
-    kirim_text = "\n".join(f"+{formatlash(s)} {i}" for s, i in kunlik["kirimlar"])
-    chiqim_text = "\n".join(f"{formatlash(s)} {i}" for s, i in kunlik["chiqimlar"])
-    x = f"📅 {bugun}\n"
+    kirim_text = "\n".join("+{} {}".format(formatlash(s), i) for s, i in kunlik["kirimlar"])
+    chiqim_text = "\n".join("{} {}".format(formatlash(s), i) for s, i in kunlik["chiqimlar"])
+    x = "Kunlik xisobot: {}\n".format(bugun)
     if kirim_text:
-        x += f"\n{kirim_text}\n"
+        x += "\n{}\n".format(kirim_text)
     if chiqim_text:
-        x += f"\n{chiqim_text}\n"
-    x += f"\nJami: {formatlash(jami_chiqim)}\nBalans: {formatlash(balans)}\nQoldi: {formatlash(qoldi)}"
+        x += "\n{}\n".format(chiqim_text)
+    x += "\nJami: {}\nBalans: {}\nQoldi: {}".format(
+        formatlash(jami_chiqim), formatlash(balans), formatlash(qoldi))
     return x, qoldi
 
 def xabar_qayta_ishlash(chat_id, matn):
+    if matn in ["/start", "/menu"]:
+        holat[chat_id] = ""
+        asosiy_menu(chat_id)
+        return
+
     h = holat.get(chat_id, "")
-    
-    if matn == "💰 Kirim":
+
+    if matn == "Kirim":
         holat[chat_id] = "kirim_tur"
-        yuborish(chat_id, "Kirim turi?", [["🏦 Rahbardan", "📦 Zakladdan"], ["🔙 Orqaga"]])
-    elif matn == "💸 Chiqim":
+        yuborish(chat_id, "Kirim turi?", [
+            ["Rahbardan", "Zakladdan"],
+            ["Orqaga"]
+        ])
+    elif matn == "Chiqim":
         holat[chat_id] = "chiqim_summa"
         yuborish(chat_id, "Chiqim summasini kiriting:")
-    elif matn == "💼 Oldingi qoldiq":
+    elif matn == "Oldingi qoldiq":
         holat[chat_id] = "qoldiq_summa"
         yuborish(chat_id, "Oldingi qoldiq summasini kiriting:")
-    elif matn == "📊 Xisobot ko'rish":
+    elif matn == "Xisobot korish":
         x, _ = xisobot_matni()
         yuborish(chat_id, x)
         asosiy_menu(chat_id)
-    elif matn == "🔙 Orqaga":
+    elif matn == "Orqaga":
         holat[chat_id] = ""
         asosiy_menu(chat_id)
     elif h == "kirim_tur":
-        if matn == "🏦 Rahbardan":
+        if matn == "Rahbardan":
+            kunlik["kirimlar"].append((0, "Rahbardan olingan"))
             holat[chat_id] = "rahbar_summa"
-            yuborish(chat_id, "Summani kiriting:")
-        elif matn == "📦 Zakladdan":
+            yuborish(chat_id, "Rahbardan olingan summani kiriting:")
+        elif matn == "Zakladdan":
             holat[chat_id] = "zaklad_summa"
-            yuborish(chat_id, "Summani kiriting:")
+            yuborish(chat_id, "Zakladdan olingan summani kiriting:")
+        elif matn == "Orqaga":
+            holat[chat_id] = ""
+            asosiy_menu(chat_id)
     elif h == "rahbar_summa":
         try:
-            summa = int(matn.replace(" ", ""))
-            kunlik["kirimlar"].append((summa, "Rahbardan olingan"))
+            summa = int(matn.replace(" ", "").replace(",", ""))
+            if kunlik["kirimlar"] and kunlik["kirimlar"][-1][1] == "Rahbardan olingan":
+                kunlik["kirimlar"][-1] = (summa, "Rahbardan olingan")
             holat[chat_id] = ""
-            yuborish(chat_id, f"✅ +{formatlash(summa)} Rahbardan olingan")
+            yuborish(chat_id, "Qoshildi: +{} Rahbardan olingan".format(formatlash(summa)))
             asosiy_menu(chat_id)
         except:
-            yuborish(chat_id, "⚠️ Faqat raqam kiriting!")
+            yuborish(chat_id, "Faqat raqam kiriting!")
     elif h == "zaklad_summa":
         try:
-            holat[chat_id + "_summa"] = int(matn.replace(" ", ""))
+            holat[chat_id + "_summa"] = int(matn.replace(" ", "").replace(",", ""))
             holat[chat_id] = "zaklad_izoh"
             yuborish(chat_id, "Zaklad izohini kiriting:")
         except:
-            yuborish(chat_id, "⚠️ Faqat raqam kiriting!")
+            yuborish(chat_id, "Faqat raqam kiriting!")
     elif h == "zaklad_izoh":
         summa = holat.get(chat_id + "_summa", 0)
         kunlik["kirimlar"].append((summa, matn))
         holat[chat_id] = ""
-        yuborish(chat_id, f"✅ +{formatlash(summa)} {matn}")
+        yuborish(chat_id, "Qoshildi: +{} {}".format(formatlash(summa), matn))
         asosiy_menu(chat_id)
     elif h == "chiqim_summa":
         try:
-            holat[chat_id + "_summa"] = int(matn.replace(" ", ""))
+            holat[chat_id + "_summa"] = int(matn.replace(" ", "").replace(",", ""))
             holat[chat_id] = "chiqim_izoh"
             yuborish(chat_id, "Izohini kiriting:")
         except:
-            yuborish(chat_id, "⚠️ Faqat raqam kiriting!")
+            yuborish(chat_id, "Faqat raqam kiriting!")
     elif h == "chiqim_izoh":
         summa = holat.get(chat_id + "_summa", 0)
         kunlik["chiqimlar"].append((summa, matn))
         holat[chat_id] = ""
-        yuborish(chat_id, f"✅ {formatlash(summa)} {matn}")
+        yuborish(chat_id, "Qoshildi: {} {}".format(formatlash(summa), matn))
         asosiy_menu(chat_id)
     elif h == "qoldiq_summa":
         try:
-            kunlik["oldingi_qoldiq"] = int(matn.replace(" ", ""))
+            kunlik["oldingi_qoldiq"] = int(matn.replace(" ", "").replace(",", ""))
             holat[chat_id] = ""
-            yuborish(chat_id, f"✅ Oldingi qoldiq saqlandi!")
+            yuborish(chat_id, "Oldingi qoldiq saqlandi!")
             asosiy_menu(chat_id)
         except:
-            yuborish(chat_id, "⚠️ Faqat raqam kiriting!")
+            yuborish(chat_id, "Faqat raqam kiriting!")
     else:
         asosiy_menu(chat_id)
 
@@ -128,7 +143,7 @@ def polling():
     offset = 0
     while True:
         try:
-            url = f"{BASE_URL}/getUpdates?offset={offset}&timeout=30"
+            url = "https://api.telegram.org/bot{}/getUpdates?offset={}&timeout=30".format(TOKEN, offset)
             with urllib.request.urlopen(url, timeout=35) as r:
                 updates = json.loads(r.read())
             for u in updates.get("result", []):
@@ -139,7 +154,8 @@ def polling():
                 if chat_id and matn:
                     xabar_qayta_ishlash(chat_id, matn)
         except Exception as e:
-            print(f"Xato: {e}")
+            print("Xato: {}".format(e))
+            time.sleep(5)
 
 def kunlik_yuborish():
     while True:
@@ -152,15 +168,14 @@ def kunlik_yuborish():
                 kunlik["kirimlar"] = []
                 kunlik["chiqimlar"] = []
             except Exception as e:
-                print(f"Yuborish xatosi: {e}")
-        import time
+                print("Yuborish xatosi: {}".format(e))
         time.sleep(60)
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot ishlayapti!")
+        self.wfile.write(b"Agro bot ishlayapti!")
     def log_message(self, *args):
         pass
 
