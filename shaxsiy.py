@@ -38,4 +38,4 @@ def yuborish(chat_id, matn, keyboard=None):
 def asosiy_menu(chat_id):
     yuborish(chat_id, "Nima qilmoqchisiz?", [
         ["💰 Daromad", "💸 Xarajat"],
-        ["💼 Oldingi qoldiq", "📊 Xisobot
+       ["💼 Oldingi qoldiq", "📊 Xisobot korish"],
