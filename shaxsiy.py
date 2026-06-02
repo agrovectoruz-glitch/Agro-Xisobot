@@ -7,7 +7,7 @@ import threading
 import time
 import calendar
 
-TOKEN = os.environ.get("8808944343:AAFNa_P6pnIKejQBal9MPavryAe8qoPrRmw")
+TOKEN = os.environ.get("8808944343:AAFboqUsANcxVSRHlJ_t5D0HtC6GjfY9Zfw")
 GURUH_ID = os.environ.get("-1003966538627")
 YUBORISH_SOAT = 15
 
