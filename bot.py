@@ -17,14 +17,14 @@ kunlik = {"kirimlar": [], "chiqimlar": [], "oldingi_qoldiq": 0}
 def formatlash(summa):
     return "{:,}".format(int(summa)).replace(",", " ")
 
-async def start(update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("💰 Kirim"), KeyboardButton("💸 Chiqim")],
         [KeyboardButton("💼 Oldingi qoldiq"), KeyboardButton("📊 Xisobot ko'rish")]
     ]
     await update.message.reply_text("Nima qilmoqchisiz?", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-async def xabar(update, context):
+async def xabar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     matn = update.message.text
     if matn == "💰 Kirim":
         keyboard = [[KeyboardButton("🏦 Rahbardan"), KeyboardButton("📦 Zakladdan")], [KeyboardButton("🔙 Orqaga")]]
@@ -42,7 +42,7 @@ async def xabar(update, context):
         await xisobot_yuborish(update, context, faqat_korish=True)
     return ConversationHandler.END
 
-async def tur_tanlash(update, context):
+async def tur_tanlash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     matn = update.message.text
     if matn == "🏦 Rahbardan":
         context.user_data["tur"] = "rahbar"
@@ -57,7 +57,7 @@ async def tur_tanlash(update, context):
         return ConversationHandler.END
     return TUR
 
-async def summa_qabul(update, context):
+async def summa_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         summa = int(update.message.text.replace(" ", "").replace(",", ""))
         context.user_data["summa"] = summa
@@ -82,7 +82,7 @@ async def summa_qabul(update, context):
         await update.message.reply_text("⚠️ Faqat raqam kiriting!")
         return SUMMA
 
-async def izoh_qabul(update, context):
+async def izoh_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
     izoh = update.message.text
     summa = context.user_data.get("summa")
     kunlik["chiqimlar"].append((summa, izoh))
@@ -90,7 +90,7 @@ async def izoh_qabul(update, context):
     await start(update, context)
     return ConversationHandler.END
 
-async def zaklad_izoh_qabul(update, context):
+async def zaklad_izoh_qabul(update: Update, context: ContextTypes.DEFAULT_TYPE):
     izoh = update.message.text
     summa = context.user_data.get("summa")
     kunlik["kirimlar"].append((summa, izoh))
@@ -123,7 +123,7 @@ async def xisobot_yuborish(update=None, context=None, faqat_korish=False):
         kunlik["kirimlar"] = []
         kunlik["chiqimlar"] = []
 
-async def kunlik_yuborish(context):
+async def kunlik_yuborish(context: ContextTypes.DEFAULT_TYPE):
     await xisobot_yuborish(context=context, faqat_korish=False)
 
 def main():
@@ -141,7 +141,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv)
     app.job_queue.run_daily(kunlik_yuborish, time=time(hour=YUBORISH_SOAT, minute=0))
-    app.run_polling()
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
