@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from datetime import datetime, time
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
@@ -126,22 +127,10 @@ async def xisobot_yuborish(update=None, context=None, faqat_korish=False):
 async def kunlik_yuborish(context: ContextTypes.DEFAULT_TYPE):
     await xisobot_yuborish(context=context, faqat_korish=False)
 
-def main():
+async def main():
     app = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, xabar)],
         states={
             TUR: [MessageHandler(filters.TEXT & ~filters.COMMAND, tur_tanlash)],
-            SUMMA: [MessageHandler(filters.TEXT & ~filters.COMMAND, summa_qabul)],
-            IZOH: [MessageHandler(filters.TEXT & ~filters.COMMAND, izoh_qabul)],
-            ZAKLAD_IZOH: [MessageHandler(filters.TEXT & ~filters.COMMAND, zaklad_izoh_qabul)],
-        },
-        fallbacks=[CommandHandler("start", start)]
-    )
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(conv)
-    app.job_queue.run_daily(kunlik_yuborish, time=time(hour=YUBORISH_SOAT, minute=0))
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
-
-if __name__ == "__main__":
-    main()
+            SUMMA: [MessageHandler(filters.TEXT & ~filters.COMMAND, s
