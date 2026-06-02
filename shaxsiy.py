@@ -71,7 +71,9 @@ def oylik_xisobot_matni():
         x += f"\n💸 Xarajatlar:\n{xarajat_text}\n"
     x += f"\nJami daromad: {formatlash(jami_daromad)}\nJami xarajat: {formatlash(jami_xarajat)}\nQoldi: {formatlash(qoldi)}"
     return x
-
+if matn == "/start":
+    asosiy_menu(chat_id)
+    return
 def xabar_qayta_ishlash(chat_id, matn):
     h = holat.get(chat_id, "")
 
